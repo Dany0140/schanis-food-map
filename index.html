@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Schani's Food Map - Track Allergies</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #F8F7F4;
+      --card-bg: #FFFFFF;
+      --primary: #2D5A4A;
+      --secondary: #7BA38F;
+      --accent-bad: #D64545;
+      --accent-good: #4CAF50;
+      --accent-warn: #F5A623;
+      --text-primary: #1A1A1A;
+      --text-secondary: #666666;
+      --border: #E5E3DE;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: "DM Sans", system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text-primary);
+      min-height: 100vh;
+      font-size: 16px;
+      line-height: 1.5;
+    }
+
+    .container {
+      max-width: 600px;
+      margin: 0 auto;
+      padding: 24px 16px 48px;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 32px;
+    }
+
+    h1 {
+      font-weight: 600;
+      font-size: 28px;
+      color: var(--primary);
+      margin-bottom: 4px;
+    }
+
+    .header-actions {
+      display: flex;
+      justify-content: center;
+      gap: 12px;
+      margin-top: 12px;
+    }
+
+    .btn-text {
+      background: none;
+      border: none;
+      font-family: inherit;
+      font-size: 13px;
+      color: var(--text-secondary);
+      cursor: pointer;
+      text-decoration: underline;
+      padding: 4px 8px;
+    }
+
+    .btn-text:hover {
+      color: var(--primary);
+    }
+
+    .subtitle {
+      color: var(--text-secondary);
+      font-size: 14px;
+    }
+
+    .card {
+      background: var(--card-bg);
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 20px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+      border: 1px solid var(--border);
+    }
+
+    .form-group {
+      margin-bottom: 16px;
+    }
+
+    .form-group:last-of-type {
+      margin-bottom: 20px;
+    }
+
+    label {
+      display: block;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-secondary);
+      margin-bottom: 6px;
+    }
+
+    input[type="text"],
+    input[type="date"] {
+      width: 100%;
+      padding: 12px 14px;
+      font-family: inherit;
+      font-size: 15px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--bg);
+      color: var(--text-primary);
+      transition: border-color 0.2s;
+    }
+
+    input:focus {
+      outline: none;
+      border-color: var(--primary);
+    }
+
+    .feeling-slider {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    input[type="range"] {
+      flex: 1;
+      -webkit-appearance: none;
+      appearance: none;
+      height: 6px;
+      background: var(--border);
+      border-radius: 3px;
+      cursor: pointer;
+    }
+
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 22px;
+      height: 22px;
+      background: var(--primary);
+      border-radius: 50%;
+      cursor: pointer;
+      transition: transform 0.15s;
+    }
+
+    input[type="range"]::-webkit-slider-thumb:hover {
+      transform: scale(1.1);
+    }
+
+    .feeling-display {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 70px;
+    }
+
+    .feeling-emoji {
+      font-size: 24px;
+    }
+
+    .feeling-label {
+      font-size: 13px;
+      font-weight: 500;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 12px 24px;
+      font-family: inherit;
+      font-size: 15px;
+      font-weight: 500;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-primary {
+      background: var(--primary);
+      color: white;
+      width: 100%;
+    }
+
+    .btn-primary:hover {
+      background: #234a3d;
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 32px 16px;
+      color: var(--text-secondary);
+    }
+
+    .empty-state-icon {
+      font-size: 40px;
+      margin-bottom: 12px;
+    }
+
+    .meal-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 16px;
+      background: var(--card-bg);
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      margin-bottom: 12px;
+    }
+
+    .meal-feeling {
+      font-size: 28px;
+      flex-shrink: 0;
+    }
+
+    .meal-content {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .meal-name {
+      font-weight: 600;
+      font-size: 16px;
+      margin-bottom: 4px;
+    }
+
+    .meal-ingredients {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-bottom: 6px;
+    }
+
+    .ingredient-tag {
+      display: inline-block;
+      padding: 3px 10px;
+      font-size: 12px;
+      background: var(--bg);
+      border-radius: 12px;
+      color: var(--text-secondary);
+    }
+
+    .meal-date {
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+
+    .meal-delete {
+      background: none;
+      border: none;
+      font-size: 18px;
+      color: var(--text-secondary);
+      cursor: pointer;
+      padding: 4px;
+      opacity: 0.6;
+      transition: opacity 0.2s, color 0.2s;
+    }
+
+    .meal-delete:hover {
+      opacity: 1;
+      color: var(--accent-bad);
+    }
+
+    .feeling-great { color: var(--accent-good); }
+    .feeling-good { color: var(--accent-good); opacity: 0.7; }
+    .feeling-okay { color: var(--accent-warn); }
+    .feeling-bad { color: var(--accent-bad); opacity: 0.7; }
+    .feeling-terrible { color: var(--accent-bad); }
+
+    @media (max-width: 400px) {
+      .container {
+        padding: 16px 12px 40px;
+      }
+      
+      h1 {
+        font-size: 24px;
+      }
+
+      .meal-item {
+        padding: 12px;
+      }
+
+      .meal-feeling {
+        font-size: 24px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Schani's Food Map</h1>
+      <p class="subtitle">Track what you eat, discover what hurts</p>
+      <div class="header-actions">
+        <button class="btn-text" id="export-btn">Export Data</button>
+        <button class="btn-text" id="import-btn">Import Data</button>
+        <input type="file" id="import-file" accept=".json" style="display:none">
+      </div>
+    </header>
+
+    <div class="card">
+      <form id="meal-form">
+        <div class="form-group">
+          <label for="meal-name">Meal name</label>
+          <input type="text" id="meal-name" placeholder="e.g., Breakfast burrito" required>
+        </div>
+        <div class="form-group">
+          <label for="meal-ingredients">Ingredients (comma-separated)</label>
+          <input type="text" id="meal-ingredients" placeholder="e.g., eggs, cheese, tortilla">
+        </div>
+        <div class="form-group">
+          <label>How did you feel?</label>
+          <div class="feeling-slider">
+            <input type="range" id="meal-feeling" min="1" max="5" value="3">
+            <div class="feeling-display">
+              <span class="feeling-emoji" id="feeling-emoji">😐</span>
+              <span class="feeling-label" id="feeling-label">Okay</span>
+            </div>
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="meal-date">Date</label>
+          <input type="date" id="meal-date">
+        </div>
+        <button type="submit" class="btn btn-primary">Save Meal</button>
+      </form>
+    </div>
+
+    <div id="meal-list"></div>
+  </div>
+
+  <script>
+    const STORAGE_KEY = 'foodmap_meals';
+
+    const feelingConfig = {
+      1: { emoji: '😫', label: 'Terrible', class: 'feeling-terrible' },
+      2: { emoji: '😕', label: 'Bad', class: 'feeling-bad' },
+      3: { emoji: '😐', label: 'Okay', class: 'feeling-okay' },
+      4: { emoji: '🙂', label: 'Good', class: 'feeling-good' },
+      5: { emoji: '😄', label: 'Great', class: 'feeling-great' }
+    };
+
+    let meals = [];
+
+    function loadMeals() {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        meals = JSON.parse(saved);
+      }
+    }
+
+    function saveMeals() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(meals));
+    }
+
+    function extractIngredients(ingredientString) {
+      if (!ingredientString) return [];
+      return ingredientString
+        .split(',')
+        .map(i => i.trim())
+        .filter(i => i.length > 0);
+    }
+
+    function formatDate(isoString) {
+      const date = new Date(isoString);
+      return date.toLocaleDateString('en-US', { 
+        month: 'short', 
+        day: 'numeric',
+        year: date.getFullYear() !== new Date().getFullYear() ? 'numeric' : undefined
+      });
+    }
+
+    document.getElementById('meal-date').value = new Date().toISOString().split('T')[0];
+
+    const feelingSlider = document.getElementById('meal-feeling');
+    const feelingEmoji = document.getElementById('feeling-emoji');
+    const feelingLabel = document.getElementById('feeling-label');
+
+    function updateFeelingDisplay(value) {
+      const config = feelingConfig[value];
+      feelingEmoji.textContent = config.emoji;
+      feelingLabel.textContent = config.label;
+      feelingLabel.className = 'feeling-label ' + config.class;
+    }
+
+    feelingSlider.addEventListener('input', (e) => {
+      updateFeelingDisplay(e.target.value);
+    });
+
+    updateFeelingDisplay(3);
+
+    document.getElementById('meal-form').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const name = document.getElementById('meal-name').value.trim();
+      const ingredients = document.getElementById('meal-ingredients').value.trim();
+      const feeling = parseInt(feelingSlider.value);
+      const date = document.getElementById('meal-date').value;
+
+      const meal = {
+        id: Date.now().toString(),
+        name,
+        ingredients,
+        feeling,
+        date
+      };
+
+      meals.unshift(meal);
+      saveMeals();
+      renderMeals();
+
+      document.getElementById('meal-name').value = '';
+      document.getElementById('meal-ingredients').value = '';
+      feelingSlider.value = 3;
+      updateFeelingDisplay(3);
+      document.getElementById('meal-date').value = new Date().toISOString().split('T')[0];
+    });
+
+    function renderMeals() {
+      const list = document.getElementById('meal-list');
+      
+      if (meals.length === 0) {
+        list.innerHTML = `
+          <div class="empty-state">
+            <div class="empty-state-icon">🍽️</div>
+            <p>No meals tracked yet.<br>Add your first meal above!</p>
+          </div>
+        `;
+        return;
+      }
+
+      const sorted = [...meals].sort((a, b) => new Date(b.date) - new Date(a.date));
+
+      list.innerHTML = sorted.map(meal => {
+        const config = feelingConfig[meal.feeling];
+        const ingredientList = extractIngredients(meal.ingredients);
+
+        return `
+          <div class="meal-item">
+            <div class="meal-feeling">${config.emoji}</div>
+            <div class="meal-content">
+              <div class="meal-name">${meal.name}</div>
+              ${ingredientList.length > 0 ? `
+                <div class="meal-ingredients">
+                  ${ingredientList.map(i => `<span class="ingredient-tag">${i}</span>`).join('')}
+                </div>
+              ` : ''}
+              <div class="meal-date">${formatDate(meal.date)}</div>
+            </div>
+            <button class="meal-delete" data-id="${meal.id}">×</button>
+          </div>
+        `;
+      }).join('');
+
+      list.querySelectorAll('.meal-delete').forEach(btn => {
+        btn.addEventListener('click', () => {
+          meals = meals.filter(m => m.id !== btn.dataset.id);
+          saveMeals();
+          renderMeals();
+        });
+      });
+    }
+
+    loadMeals();
+    renderMeals();
+
+    document.getElementById('export-btn').addEventListener('click', () => {
+      const exportData = {
+        version: 1,
+        exportedAt: new Date().toISOString(),
+        meals: meals
+      };
+      const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `foodmap-${new Date().toISOString().split('T')[0]}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    });
+
+    document.getElementById('import-btn').addEventListener('click', () => {
+      document.getElementById('import-file').click();
+    });
+
+    document.getElementById('import-file').addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        try {
+          const data = JSON.parse(event.target.result);
+          if (data.meals && Array.isArray(data.meals)) {
+            meals = data.meals;
+            saveMeals();
+            renderMeals();
+            alert('Data imported successfully!');
+          } else {
+            alert('Invalid file format');
+          }
+        } catch (err) {
+          alert('Error reading file');
+        }
+      };
+      reader.readAsText(file);
+      e.target.value = '';
+    });
+  </script>
+</body>
+</html>
