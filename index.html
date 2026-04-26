@@ -100,6 +100,60 @@
       color: var(--primary-dark);
     }
 
+    .quick-actions {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      margin-top: 16px;
+    }
+
+    .quick-emoji {
+      font-size: 28px;
+      background: var(--card-bg);
+      border: 2px solid var(--border);
+      border-radius: 16px;
+      padding: 8px 14px;
+      display: inline-block;
+      box-shadow: 0 2px 8px var(--shadow);
+    }
+
+    #water-total {
+      font-weight: 600;
+      color: var(--primary-dark);
+      font-size: 14px;
+    }
+
+    .quick-group {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .quick-controls {
+      display: flex;
+      gap: 4px;
+    }
+
+    .quick-plus, .quick-minus {
+      font-size: 18px;
+      font-weight: 600;
+      background: var(--primary-light);
+      border: none;
+      border-radius: 8px;
+      width: 28px;
+      height: 24px;
+      cursor: pointer;
+      color: var(--primary-dark);
+      transition: all 0.2s;
+    }
+
+    .quick-plus:hover, .quick-minus:hover {
+      background: var(--primary);
+      color: white;
+    }
+
     .subtitle {
       color: var(--text-secondary);
       font-size: 15px;
@@ -354,6 +408,24 @@
         <button class="btn-text" id="import-btn">Import Data</button>
         <input type="file" id="import-file" accept=".json" style="display:none">
       </div>
+      <div class="quick-actions">
+        <div class="quick-group">
+          <span class="quick-emoji">💩</span>
+          <span id="poop-count">0</span>
+          <div class="quick-controls">
+            <button class="quick-plus" id="poop-plus">+</button>
+            <button class="quick-minus" id="poop-minus">−</button>
+          </div>
+        </div>
+        <div class="quick-group">
+          <span class="quick-emoji">🥛</span>
+          <span id="water-total">0L</span>
+          <div class="quick-controls">
+            <button class="quick-plus" id="water-plus">+</button>
+            <button class="quick-minus" id="water-minus">−</button>
+          </div>
+        </div>
+      </div>
     </header>
 
     <div class="card">
@@ -389,6 +461,10 @@
 
   <script>
     const STORAGE_KEY = 'foodmap_meals';
+    const POOPED_KEY = 'foodmap_pooped';
+    const WATER_KEY = 'foodmap_water';
+    const POOP_COUNT_KEY = 'foodmap_poop_count';
+    const POOP_DATE_KEY = 'foodmap_poop_date';
 
     const feelingConfig = {
       1: { emoji: '😿', label: 'Terrible', class: 'feeling-terrible' },
@@ -399,6 +475,9 @@
     };
 
     let meals = [];
+    let pooped = [];
+    let waterDrank = 0;
+    let dailyPoopCount = 0;
 
     function loadMeals() {
       const saved = localStorage.getItem(STORAGE_KEY);
@@ -409,6 +488,44 @@
 
     function saveMeals() {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(meals));
+    }
+
+    function loadTracking() {
+      const poopSaved = localStorage.getItem(POOPED_KEY);
+      if (poopSaved) {
+        pooped = JSON.parse(poopSaved);
+      }
+      const waterSaved = localStorage.getItem(WATER_KEY);
+      if (waterSaved) {
+        waterDrank = parseFloat(waterSaved);
+      }
+
+      const today = new Date().toISOString().split('T')[0];
+      const savedDate = localStorage.getItem(POOP_DATE_KEY);
+      const savedCount = localStorage.getItem(POOP_COUNT_KEY);
+
+      if (savedDate === today && savedCount) {
+        dailyPoopCount = parseInt(savedCount);
+      } else {
+        dailyPoopCount = 0;
+      }
+      updatePoopDisplay();
+      updateWaterDisplay();
+    }
+
+    function saveTracking() {
+      localStorage.setItem(POOPED_KEY, JSON.stringify(pooped));
+      localStorage.setItem(WATER_KEY, waterDrank.toString());
+      localStorage.setItem(POOP_DATE_KEY, new Date().toISOString().split('T')[0]);
+      localStorage.setItem(POOP_COUNT_KEY, dailyPoopCount.toString());
+    }
+
+    function updateWaterDisplay() {
+      document.getElementById('water-total').textContent = waterDrank + 'L';
+    }
+
+    function updatePoopDisplay() {
+      document.getElementById('poop-count').textContent = dailyPoopCount;
     }
 
     function extractIngredients(ingredientString) {
@@ -520,12 +637,49 @@
 
     loadMeals();
     renderMeals();
+    loadTracking();
+
+    document.getElementById('poop-plus').addEventListener('click', () => {
+      pooped.push(new Date().toISOString());
+      dailyPoopCount++;
+      saveTracking();
+      updatePoopDisplay();
+    });
+
+    document.getElementById('poop-minus').addEventListener('click', () => {
+      if (dailyPoopCount > 0) {
+        dailyPoopCount--;
+        const today = new Date().toISOString().split('T')[0];
+        const lastPoopIndex = pooped.findIndex(p => p.startsWith(today));
+        if (lastPoopIndex !== -1) {
+          pooped.splice(lastPoopIndex, 1);
+        }
+        saveTracking();
+        updatePoopDisplay();
+      }
+    });
+
+    document.getElementById('water-plus').addEventListener('click', () => {
+      waterDrank += 0.5;
+      saveTracking();
+      updateWaterDisplay();
+    });
+
+    document.getElementById('water-minus').addEventListener('click', () => {
+      if (waterDrank >= 0.5) {
+        waterDrank -= 0.5;
+        saveTracking();
+        updateWaterDisplay();
+      }
+    });
 
     document.getElementById('export-btn').addEventListener('click', () => {
       const exportData = {
         version: 1,
         exportedAt: new Date().toISOString(),
-        meals: meals
+        meals: meals,
+        pooped: pooped,
+        waterDrank: waterDrank
       };
       const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
@@ -551,10 +705,16 @@
             meals = data.meals;
             saveMeals();
             renderMeals();
-            alert('Data imported successfully!');
-          } else {
-            alert('Invalid file format');
           }
+          if (data.pooped && Array.isArray(data.pooped)) {
+            pooped = data.pooped;
+          }
+          if (typeof data.waterDrank === 'number') {
+            waterDrank = data.waterDrank;
+          }
+          saveTracking();
+          updateWaterDisplay();
+          alert('Data imported successfully!');
         } catch (err) {
           alert('Error reading file');
         }
