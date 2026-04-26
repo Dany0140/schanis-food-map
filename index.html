@@ -6,19 +6,22 @@
   <title>Schani's Food Map - Track Allergies</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600&family=Quicksand:wght@400;500;600&display=swap" rel="stylesheet">
   <style>
     :root {
-      --bg: #F8F7F4;
+      --bg: #FFF0F3;
       --card-bg: #FFFFFF;
-      --primary: #2D5A4A;
-      --secondary: #7BA38F;
-      --accent-bad: #D64545;
-      --accent-good: #4CAF50;
-      --accent-warn: #F5A623;
-      --text-primary: #1A1A1A;
-      --text-secondary: #666666;
-      --border: #E5E3DE;
+      --primary: #FFB7C5;
+      --primary-light: #FFD4DC;
+      --primary-dark: #F48FB1;
+      --secondary: #FFE4E9;
+      --accent-bad: #FF9E9E;
+      --accent-good: #A8E6CF;
+      --accent-warn: #FFE5A0;
+      --text-primary: #5A5A5A;
+      --text-secondary: #8B7D7D;
+      --border: #FFE0E6;
+      --shadow: rgba(255, 183, 197, 0.2);
     }
 
     * {
@@ -28,12 +31,16 @@
     }
 
     body {
-      font-family: "DM Sans", system-ui, sans-serif;
+      font-family: "Quicksand", system-ui, sans-serif;
       background: var(--bg);
+      background-image: 
+        radial-gradient(circle at 20% 20%, rgba(255, 212, 220, 0.4) 0%, transparent 50%),
+        radial-gradient(circle at 80% 80%, rgba(255, 183, 197, 0.3) 0%, transparent 50%),
+        radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.6) 0%, transparent 70%);
       color: var(--text-primary);
       min-height: 100vh;
       font-size: 16px;
-      line-height: 1.5;
+      line-height: 1.6;
     }
 
     .container {
@@ -48,10 +55,23 @@
     }
 
     h1 {
+      font-family: "Fredoka", cursive;
       font-weight: 600;
-      font-size: 28px;
-      color: var(--primary);
+      font-size: 36px;
+      color: var(--primary-dark);
       margin-bottom: 4px;
+      text-shadow: 2px 2px 0px rgba(255, 183, 197, 0.4);
+    }
+
+    .header-decoration {
+      font-size: 32px;
+      margin-bottom: 8px;
+      animation: wiggle 3s ease-in-out infinite;
+    }
+
+    @keyframes wiggle {
+      0%, 100% { transform: rotate(-3deg); }
+      50% { transform: rotate(3deg); }
     }
 
     .header-actions {
@@ -65,29 +85,36 @@
       background: none;
       border: none;
       font-family: inherit;
-      font-size: 13px;
-      color: var(--text-secondary);
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--primary);
       cursor: pointer;
-      text-decoration: underline;
-      padding: 4px 8px;
+      text-decoration: none;
+      padding: 6px 12px;
+      border-radius: 12px;
+      transition: all 0.2s;
     }
 
     .btn-text:hover {
-      color: var(--primary);
+      background: var(--primary-light);
+      color: var(--primary-dark);
     }
 
     .subtitle {
       color: var(--text-secondary);
-      font-size: 14px;
+      font-size: 15px;
+      font-weight: 500;
     }
 
     .card {
       background: var(--card-bg);
-      border-radius: 12px;
-      padding: 20px;
+      border-radius: 24px;
+      padding: 24px;
       margin-bottom: 20px;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.04);
-      border: 1px solid var(--border);
+      box-shadow: 
+        0 4px 20px var(--shadow),
+        0 0 0 2px var(--border);
+      border: 2px solid var(--border);
     }
 
     .form-group {
@@ -100,124 +127,143 @@
 
     label {
       display: block;
-      font-size: 13px;
-      font-weight: 500;
-      color: var(--text-secondary);
-      margin-bottom: 6px;
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--primary-dark);
+      margin-bottom: 8px;
+      letter-spacing: 0.5px;
     }
 
     input[type="text"],
     input[type="date"] {
       width: 100%;
-      padding: 12px 14px;
+      padding: 14px 16px;
       font-family: inherit;
       font-size: 15px;
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      background: var(--bg);
+      border: 2px solid var(--border);
+      border-radius: 16px;
+      background: #FFF9FA;
       color: var(--text-primary);
-      transition: border-color 0.2s;
+      transition: border-color 0.2s, box-shadow 0.2s;
     }
 
     input:focus {
       outline: none;
       border-color: var(--primary);
+      box-shadow: 0 0 0 4px rgba(255, 105, 180, 0.15);
     }
 
     .feeling-slider {
       display: flex;
       align-items: center;
       gap: 12px;
+      padding: 8px 0;
     }
 
     input[type="range"] {
       flex: 1;
       -webkit-appearance: none;
       appearance: none;
-      height: 6px;
-      background: var(--border);
-      border-radius: 3px;
+      height: 8px;
+      background: linear-gradient(90deg, var(--accent-bad), var(--accent-warn), var(--accent-good));
+      border-radius: 4px;
       cursor: pointer;
     }
 
     input[type="range"]::-webkit-slider-thumb {
       -webkit-appearance: none;
-      width: 22px;
-      height: 22px;
-      background: var(--primary);
+      width: 28px;
+      height: 28px;
+      background: linear-gradient(135deg, var(--primary), var(--primary-light));
       border-radius: 50%;
       cursor: pointer;
       transition: transform 0.15s;
+      box-shadow: 0 2px 8px rgba(255, 183, 197, 0.4);
     }
 
     input[type="range"]::-webkit-slider-thumb:hover {
-      transform: scale(1.1);
+      transform: scale(1.15);
     }
 
     .feeling-display {
       display: flex;
       align-items: center;
-      gap: 8px;
-      min-width: 70px;
+      gap: 10px;
+      min-width: 80px;
     }
 
     .feeling-emoji {
-      font-size: 24px;
+      font-size: 28px;
+      flex-shrink: 0;
     }
 
     .feeling-label {
-      font-size: 13px;
-      font-weight: 500;
+      font-size: 14px;
+      font-weight: 600;
     }
 
     .btn {
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      padding: 12px 24px;
+      padding: 14px 28px;
       font-family: inherit;
-      font-size: 15px;
-      font-weight: 500;
+      font-size: 16px;
+      font-weight: 600;
       border: none;
-      border-radius: 8px;
+      border-radius: 20px;
       cursor: pointer;
       transition: all 0.2s;
     }
 
     .btn-primary {
-      background: var(--primary);
+      background: linear-gradient(135deg, var(--primary), var(--primary-dark));
       color: white;
       width: 100%;
+      box-shadow: 0 4px 15px rgba(255, 183, 197, 0.35);
     }
 
     .btn-primary:hover {
-      background: #234a3d;
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(255, 183, 197, 0.45);
     }
 
     .empty-state {
       text-align: center;
-      padding: 32px 16px;
+      padding: 40px 20px;
       color: var(--text-secondary);
     }
 
     .empty-state-icon {
-      font-size: 40px;
+      font-size: 56px;
       margin-bottom: 12px;
+      animation: bounce 2s infinite;
+    }
+
+    @keyframes bounce {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-10px); }
     }
 
     .meal-item {
       display: flex;
       align-items: flex-start;
-      gap: 12px;
-      padding: 16px;
+      gap: 14px;
+      padding: 18px;
       background: var(--card-bg);
-      border-radius: 10px;
-      border: 1px solid var(--border);
-      margin-bottom: 12px;
+      border-radius: 20px;
+      border: 2px solid var(--border);
+      margin-bottom: 14px;
+      box-shadow: 0 2px 10px var(--shadow);
+      transition: transform 0.2s;
+    }
+
+    .meal-item:hover {
+      transform: scale(1.02);
     }
 
     .meal-feeling {
-      font-size: 28px;
+      font-size: 32px;
       flex-shrink: 0;
     }
 
@@ -228,24 +274,27 @@
 
     .meal-name {
       font-weight: 600;
-      font-size: 16px;
-      margin-bottom: 4px;
+      font-size: 17px;
+      margin-bottom: 6px;
+      color: var(--primary-dark);
     }
 
     .meal-ingredients {
       display: flex;
       flex-wrap: wrap;
-      gap: 6px;
-      margin-bottom: 6px;
+      gap: 8px;
+      margin-bottom: 8px;
     }
 
     .ingredient-tag {
       display: inline-block;
-      padding: 3px 10px;
-      font-size: 12px;
-      background: var(--bg);
-      border-radius: 12px;
-      color: var(--text-secondary);
+      padding: 5px 14px;
+      font-size: 13px;
+      font-weight: 500;
+      background: linear-gradient(135deg, #FFF0F3, #FFE4E9);
+      border-radius: 20px;
+      color: var(--primary-dark);
+      border: 1px solid var(--border);
     }
 
     .meal-date {
@@ -269,11 +318,11 @@
       color: var(--accent-bad);
     }
 
-    .feeling-great { color: var(--accent-good); }
-    .feeling-good { color: var(--accent-good); opacity: 0.7; }
-    .feeling-okay { color: var(--accent-warn); }
-    .feeling-bad { color: var(--accent-bad); opacity: 0.7; }
-    .feeling-terrible { color: var(--accent-bad); }
+    .feeling-great { color: #4CAF4F; }
+    .feeling-good { color: #7DD87D; }
+    .feeling-okay { color: #FFD93D; }
+    .feeling-bad { color: #FF9B9B; }
+    .feeling-terrible { color: #FF6B6B; }
 
     @media (max-width: 400px) {
       .container {
@@ -297,7 +346,8 @@
 <body>
   <div class="container">
     <header>
-      <h1>Schani's Food Map</h1>
+      <div class="header-decoration">🎀🐱💖</div>
+      <h1>~ Schani's Food Map ~</h1>
       <p class="subtitle">Track what you eat, discover what hurts</p>
       <div class="header-actions">
         <button class="btn-text" id="export-btn">Export Data</button>
@@ -341,11 +391,11 @@
     const STORAGE_KEY = 'foodmap_meals';
 
     const feelingConfig = {
-      1: { emoji: '😫', label: 'Terrible', class: 'feeling-terrible' },
-      2: { emoji: '😕', label: 'Bad', class: 'feeling-bad' },
+      1: { emoji: '😿', label: 'Terrible', class: 'feeling-terrible' },
+      2: { emoji: '😟', label: 'Bad', class: 'feeling-bad' },
       3: { emoji: '😐', label: 'Okay', class: 'feeling-okay' },
-      4: { emoji: '🙂', label: 'Good', class: 'feeling-good' },
-      5: { emoji: '😄', label: 'Great', class: 'feeling-great' }
+      4: { emoji: '😊', label: 'Good', class: 'feeling-good' },
+      5: { emoji: '🥰', label: 'Great', class: 'feeling-great' }
     };
 
     let meals = [];
@@ -430,7 +480,7 @@
         list.innerHTML = `
           <div class="empty-state">
             <div class="empty-state-icon">🍽️</div>
-            <p>No meals tracked yet.<br>Add your first meal above!</p>
+            <p>No meals tracked yet~<br>Add your first meal above!</p>
           </div>
         `;
         return;
