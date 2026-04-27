@@ -356,6 +356,13 @@
       color: var(--text-secondary);
     }
 
+    .meal-notes {
+      font-size: 13px;
+      color: var(--text-secondary);
+      font-style: italic;
+      margin-top: 6px;
+    }
+
     .meal-delete {
       background: none;
       border: none;
@@ -399,6 +406,8 @@
         padding: 10px 12px;
       }
     }
+
+    
   </style>
 </head>
 <body>
@@ -406,9 +415,8 @@
     <header>
       <div class="header-decoration">🎀🐱💖</div>
       <h1>~ Schani's Food Map ~</h1>
-      <p class="subtitle">Track what you eat, discover what hurts</p>
+      <p class="subtitle"></p>
       <div class="header-actions">
-        <button class="btn-text" id="export-btn">Export Data</button>
         <button class="btn-text" id="import-btn">Import Data</button>
         <input type="file" id="import-file" accept=".json" style="display:none">
       </div>
@@ -454,21 +462,24 @@
         </div>
         <div class="form-group">
           <label for="meal-date">Date</label>
-          <input type="date" id="meal-date">
+          <input type="date" id="meal-date" value>
+        </div>
+        <div class="form-group">
+          <label for="meal-notes">Notes (optional)</label>
+          <input type="text" id="meal-notes" placeholder="Any additional notes...">
         </div>
         <button type="submit" class="btn btn-primary">Save Meal</button>
       </form>
     </div>
 
     <div id="meal-list"></div>
+    
   </div>
 
   <script>
     const STORAGE_KEY = 'foodmap_meals';
-    const POOPED_KEY = 'foodmap_pooped';
-    const WATER_KEY = 'foodmap_water';
-    const POOP_COUNT_KEY = 'foodmap_poop_count';
-    const POOP_DATE_KEY = 'foodmap_poop_date';
+    const WATER_DATA_KEY = 'foodmap_water_data';
+    const POOP_DATA_KEY = 'foodmap_poop_data';
 
     const feelingConfig = {
       1: { emoji: '😿', label: 'Terrible', class: 'feeling-terrible' },
@@ -479,9 +490,8 @@
     };
 
     let meals = [];
-    let pooped = [];
-    let waterDrank = 0;
-    let dailyPoopCount = 0;
+    let waterData = {};
+    let poopData = {};
 
     function loadMeals() {
       const saved = localStorage.getItem(STORAGE_KEY);
@@ -495,41 +505,41 @@
     }
 
     function loadTracking() {
-      const poopSaved = localStorage.getItem(POOPED_KEY);
-      if (poopSaved) {
-        pooped = JSON.parse(poopSaved);
-      }
-      const waterSaved = localStorage.getItem(WATER_KEY);
+      const waterSaved = localStorage.getItem(WATER_DATA_KEY);
       if (waterSaved) {
-        waterDrank = parseFloat(waterSaved);
+        waterData = JSON.parse(waterSaved);
       }
-
-      const today = new Date().toISOString().split('T')[0];
-      const savedDate = localStorage.getItem(POOP_DATE_KEY);
-      const savedCount = localStorage.getItem(POOP_COUNT_KEY);
-
-      if (savedDate === today && savedCount) {
-        dailyPoopCount = parseInt(savedCount);
-      } else {
-        dailyPoopCount = 0;
+      const poopSaved = localStorage.getItem(POOP_DATA_KEY);
+      if (poopSaved) {
+        poopData = JSON.parse(poopSaved);
       }
       updatePoopDisplay();
       updateWaterDisplay();
     }
 
     function saveTracking() {
-      localStorage.setItem(POOPED_KEY, JSON.stringify(pooped));
-      localStorage.setItem(WATER_KEY, waterDrank.toString());
-      localStorage.setItem(POOP_DATE_KEY, new Date().toISOString().split('T')[0]);
-      localStorage.setItem(POOP_COUNT_KEY, dailyPoopCount.toString());
+      localStorage.setItem(WATER_DATA_KEY, JSON.stringify(waterData));
+      localStorage.setItem(POOP_DATA_KEY, JSON.stringify(poopData));
+    }
+
+    function getTodayWater() {
+      const today = new Date().toISOString().split('T')[0];
+      return waterData[today] || 0;
     }
 
     function updateWaterDisplay() {
-      document.getElementById('water-total').textContent = waterDrank + 'L';
+      const todayCount = getTodayWater();
+      document.getElementById('water-total').textContent = todayCount + 'L';
+    }
+
+function getTodayPoop() {
+      const today = new Date().toISOString().split('T')[0];
+      return poopData[today] || 0;
     }
 
     function updatePoopDisplay() {
-      document.getElementById('poop-count').textContent = dailyPoopCount;
+      const todayCount = getTodayPoop();
+      document.getElementById('poop-count').textContent = todayCount;
     }
 
     function extractIngredients(ingredientString) {
@@ -574,13 +584,15 @@
       const ingredients = document.getElementById('meal-ingredients').value.trim();
       const feeling = parseInt(feelingSlider.value);
       const date = document.getElementById('meal-date').value;
+      const notes = document.getElementById('meal-notes').value.trim();
 
       const meal = {
         id: Date.now().toString(),
         name,
         ingredients,
         feeling,
-        date
+        date,
+        notes
       };
 
       meals.unshift(meal);
@@ -589,6 +601,7 @@
 
       document.getElementById('meal-name').value = '';
       document.getElementById('meal-ingredients').value = '';
+      document.getElementById('meal-notes').value = '';
       feelingSlider.value = 3;
       updateFeelingDisplay(3);
       document.getElementById('meal-date').value = new Date().toISOString().split('T')[0];
@@ -623,6 +636,7 @@
                   ${ingredientList.map(i => `<span class="ingredient-tag">${i}</span>`).join('')}
                 </div>
               ` : ''}
+              ${meal.notes ? `<div class="meal-notes">${meal.notes}</div>` : ''}
               <div class="meal-date">${formatDate(meal.date)}</div>
             </div>
             <button class="meal-delete" data-id="${meal.id}">×</button>
@@ -642,36 +656,35 @@
     loadMeals();
     renderMeals();
     loadTracking();
+    document.getElementById('meal-date').value = new Date().toISOString().split('T')[0];
 
     document.getElementById('poop-plus').addEventListener('click', () => {
-      pooped.push(new Date().toISOString());
-      dailyPoopCount++;
+      const today = new Date().toISOString().split('T')[0];
+      poopData[today] = (poopData[today] || 0) + 1;
       saveTracking();
       updatePoopDisplay();
     });
 
     document.getElementById('poop-minus').addEventListener('click', () => {
-      if (dailyPoopCount > 0) {
-        dailyPoopCount--;
-        const today = new Date().toISOString().split('T')[0];
-        const lastPoopIndex = pooped.findIndex(p => p.startsWith(today));
-        if (lastPoopIndex !== -1) {
-          pooped.splice(lastPoopIndex, 1);
-        }
+      const today = new Date().toISOString().split('T')[0];
+      if (poopData[today] >= 1) {
+        poopData[today] -= 1;
         saveTracking();
         updatePoopDisplay();
       }
     });
 
     document.getElementById('water-plus').addEventListener('click', () => {
-      waterDrank += 0.5;
+      const today = new Date().toISOString().split('T')[0];
+      waterData[today] = (waterData[today] || 0) + 0.5;
       saveTracking();
       updateWaterDisplay();
     });
 
     document.getElementById('water-minus').addEventListener('click', () => {
-      if (waterDrank >= 0.5) {
-        waterDrank -= 0.5;
+      const today = new Date().toISOString().split('T')[0];
+      if (waterData[today] >= 0.5) {
+        waterData[today] -= 0.5;
         saveTracking();
         updateWaterDisplay();
       }
@@ -682,8 +695,8 @@
         version: 1,
         exportedAt: new Date().toISOString(),
         meals: meals,
-        pooped: pooped,
-        waterDrank: waterDrank
+        waterData: waterData,
+        poopData: poopData
       };
       const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
@@ -693,6 +706,8 @@
       a.click();
       URL.revokeObjectURL(url);
     });
+
+    
 
     document.getElementById('import-btn').addEventListener('click', () => {
       document.getElementById('import-file').click();
@@ -710,15 +725,24 @@
             saveMeals();
             renderMeals();
           }
-          if (data.pooped && Array.isArray(data.pooped)) {
-            pooped = data.pooped;
+          if (data.waterData && typeof data.waterData === 'object') {
+            waterData = data.waterData;
+          } else if (typeof data.waterDrank === 'number') {
+            const today = new Date().toISOString().split('T')[0];
+            waterData[today] = data.waterDrank;
           }
-          if (typeof data.waterDrank === 'number') {
-            waterDrank = data.waterDrank;
+          if (data.poopData && typeof data.poopData === 'object') {
+            poopData = data.poopData;
+          } else if (data.pooped && Array.isArray(data.pooped)) {
+            const today = new Date().toISOString().split('T')[0];
+            poopData[today] = data.pooped.length;
+          } else if (typeof data.dailyPoopCount === 'number') {
+            const today = new Date().toISOString().split('T')[0];
+            poopData[today] = data.dailyPoopCount;
           }
           saveTracking();
           updateWaterDisplay();
-          alert('Data imported successfully!');
+          updatePoopDisplay();
         } catch (err) {
           alert('Error reading file');
         }
