@@ -9,9 +9,20 @@ function escapeHTML(str) {
   return div.innerHTML;
 }
 
+/** Escape for use inside a double-quoted HTML attribute. */
+function escapeAttr(str) {
+  return escapeHTML(str).replace(/"/g, '&quot;');
+}
+
 function todayISO() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+/** Current local time as "HH:MM". */
+function nowTime() {
+  const d = new Date();
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
 
 function loadJSON(key, fallback) {
@@ -37,6 +48,11 @@ function formatDate(isoString) {
 function formatDateLong(isoString) {
   const date = new Date(isoString + 'T00:00:00');
   return date.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+}
+
+/** Sortable key combining date and time; meals without a time sort first. */
+function mealSortKey(meal) {
+  return `${meal.date} ${meal.time || '00:00'}`;
 }
 
 function parseIngredients(str) {
@@ -75,6 +91,7 @@ const KEYS = {
   meals: 'foodmap_meals',
   water: 'foodmap_water_data',
   poop: 'foodmap_poop_data',
+  stress: 'foodmap_stress_data',
 };
 
 const FEELINGS = {
@@ -85,15 +102,49 @@ const FEELINGS = {
   5: { emoji: '\u{1F970}', label: 'Great',    cls: 'feeling-great' },
 };
 
-let meals = loadJSON(KEYS.meals, []);
+const STRESS = {
+  1: { emoji: '\u{1F60C}', label: 'Relaxed',     cls: 'stress-relaxed' },
+  2: { emoji: '\u{1F642}', label: 'Calm',        cls: 'stress-calm' },
+  3: { emoji: '\u{1F610}', label: 'Moderate',    cls: 'stress-moderate' },
+  4: { emoji: '\u{1F630}', label: 'Tense',       cls: 'stress-tense' },
+  5: { emoji: '\u{1F92F}', label: 'Overwhelmed', cls: 'stress-overwhelmed' },
+};
+
+const DEFAULT_STRESS = 3;
+
+/** Fill in fields missing from older entries (meals saved before times existed). */
+function normalizeMeal(meal) {
+  return { ...meal, time: typeof meal.time === 'string' ? meal.time : '' };
+}
+
+const storedMeals = loadJSON(KEYS.meals, []);
+let meals = Array.isArray(storedMeals) ? storedMeals.map(normalizeMeal) : [];
 let waterData = loadJSON(KEYS.water, {});
 let poopData = loadJSON(KEYS.poop, {});
+
+/** One entry per day: { "YYYY-MM-DD": { level: 1-5, reason: string } } */
+let stressData = normalizeStressData(loadJSON(KEYS.stress, {}));
+
+/** Keep only well-formed day entries, clamping the level into 1-5. */
+function normalizeStressData(raw) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
+  const out = {};
+  Object.keys(raw).forEach(date => {
+    const entry = raw[date];
+    if (!entry || typeof entry !== 'object') return;
+    const level = Math.round(Number(entry.level));
+    if (!Number.isFinite(level) || level < 1 || level > 5) return;
+    out[date] = { level, reason: typeof entry.reason === 'string' ? entry.reason : '' };
+  });
+  return out;
+}
 
 function saveMeals() { localStorage.setItem(KEYS.meals, JSON.stringify(meals)); }
 function saveTracking() {
   localStorage.setItem(KEYS.water, JSON.stringify(waterData));
   localStorage.setItem(KEYS.poop, JSON.stringify(poopData));
 }
+function saveStress() { localStorage.setItem(KEYS.stress, JSON.stringify(stressData)); }
 
 // ── Router ───────────────────────────────────────────────────
 
@@ -107,6 +158,9 @@ function initRouter() {
     links.forEach(l => l.classList.toggle('active', l.dataset.page === hash));
 
     // Trigger page-specific rendering
+    // Today's stress control is re-rendered on every visit so it can't hold a
+    // stale prefill (edited in the diary, or the day rolled over past midnight).
+    if (hash === 'today') renderStressControl(document.getElementById('stress-today'), todayISO);
     if (hash === 'diary') renderDiary();
     if (hash === 'analytics') renderAnalytics();
   }
@@ -117,18 +171,43 @@ function initRouter() {
 
 // ── Daily tracker factory ────────────────────────────────────
 
-function createDailyTracker({ data, displayEl, step, unit, save }) {
-  function getValue() { return data[todayISO()] || 0; }
+/** `getData` is a getter, not the object itself, so an import that swaps the
+ *  underlying object (see initImport) doesn't leave the tracker on a stale one. */
+function createDailyTracker({ getData, displayEl, step, unit, save }) {
+  function getValue() { return getData()[todayISO()] || 0; }
   function render() { displayEl.textContent = unit ? getValue() + unit : String(getValue()); }
-  function increment() { const t = todayISO(); data[t] = (data[t] || 0) + step; save(); render(); }
-  function decrement() { const t = todayISO(); if ((data[t] || 0) >= step) { data[t] -= step; save(); render(); } }
+  function increment() {
+    const t = todayISO();
+    const data = getData();
+    data[t] = (data[t] || 0) + step;
+    save(); render();
+  }
+  function decrement() {
+    const t = todayISO();
+    const data = getData();
+    if ((data[t] || 0) >= step) { data[t] -= step; save(); render(); }
+  }
   render();
   return { increment, decrement, render };
 }
 
+let waterTracker = null;
+let poopTracker = null;
+
+/** Repaint the Today-page quick trackers after data changed elsewhere. */
+function syncTodayTrackers() {
+  if (waterTracker) waterTracker.render();
+  if (poopTracker) poopTracker.render();
+}
+
 // ── Meal card HTML (shared by Today + Diary) ─────────────────
 
-function mealCardHTML(meal, showDelete) {
+/** id of the meal currently open in the inline editor, or null. */
+let editingMealId = null;
+
+function mealCardHTML(meal, showActions) {
+  if (showActions && meal.id === editingMealId) return mealEditHTML(meal);
+
   const f = FEELINGS[meal.feeling] || FEELINGS[3];
   const ingredients = parseIngredients(meal.ingredients);
 
@@ -142,8 +221,13 @@ function mealCardHTML(meal, showDelete) {
 
   let notesHTML = meal.notes ? `<div class="meal-notes">${escapeHTML(meal.notes)}</div>` : '';
 
-  const deleteBtn = showDelete
-    ? `<button class="meal-delete" data-id="${escapeHTML(meal.id)}" aria-label="Delete meal ${escapeHTML(meal.name)}" title="Delete">&times;</button>`
+  const stamp = meal.time ? `${formatDate(meal.date)} · ${meal.time}` : formatDate(meal.date);
+
+  const actions = showActions
+    ? '<div class="meal-actions">' +
+        `<button class="meal-edit-btn" data-id="${escapeAttr(meal.id)}" aria-label="Edit meal ${escapeAttr(meal.name)}" title="Edit">&#9999;&#65039;</button>` +
+        `<button class="meal-delete" data-id="${escapeAttr(meal.id)}" aria-label="Delete meal ${escapeAttr(meal.name)}" title="Delete">&times;</button>` +
+      '</div>'
     : '';
 
   return (
@@ -153,22 +237,111 @@ function mealCardHTML(meal, showDelete) {
         `<div class="meal-name">${escapeHTML(meal.name)}</div>` +
         ingredientHTML +
         notesHTML +
-        `<div class="meal-date">${escapeHTML(formatDate(meal.date))}</div>` +
+        `<div class="meal-date">${escapeHTML(stamp)}</div>` +
       '</div>' +
-      deleteBtn +
+      actions +
     '</div>'
   );
 }
 
-function attachDeleteHandlers(container) {
+function mealEditHTML(meal) {
+  const f = FEELINGS[meal.feeling] || FEELINGS[3];
+
+  return (
+    `<form class="meal-item meal-edit" data-id="${escapeAttr(meal.id)}">` +
+      '<div class="meal-content">' +
+        '<label class="edit-field"><span>Meal name</span>' +
+          `<input type="text" class="edit-name" value="${escapeAttr(meal.name)}" required></label>` +
+        '<label class="edit-field"><span>Ingredients (comma-separated)</span>' +
+          `<input type="text" class="edit-ingredients" value="${escapeAttr(meal.ingredients || '')}"></label>` +
+        // Not a <label>: its content model forbids the nested slider markup.
+        '<div class="edit-field"><span>How did you feel?</span>' +
+          '<div class="feeling-slider">' +
+            `<input type="range" class="edit-feeling" min="1" max="5" value="${meal.feeling}" aria-label="How did you feel?">` +
+            '<div class="feeling-display" aria-live="polite">' +
+              `<span class="feeling-emoji edit-feeling-emoji">${f.emoji}</span>` +
+              `<span class="feeling-label edit-feeling-label ${f.cls}">${f.label}</span>` +
+            '</div>' +
+          '</div>' +
+        '</div>' +
+        '<div class="form-row">' +
+          '<label class="edit-field"><span>Date</span>' +
+            `<input type="date" class="edit-date" value="${escapeAttr(meal.date)}" required></label>` +
+          '<label class="edit-field"><span>Time</span>' +
+            `<input type="time" class="edit-time" value="${escapeAttr(meal.time || '')}"></label>` +
+        '</div>' +
+        '<label class="edit-field"><span>Notes</span>' +
+          `<input type="text" class="edit-notes" value="${escapeAttr(meal.notes || '')}"></label>` +
+        '<div class="edit-actions">' +
+          '<button type="submit" class="btn btn-small btn-primary">Save</button>' +
+          '<button type="button" class="btn btn-small btn-cancel edit-cancel">Cancel</button>' +
+        '</div>' +
+      '</div>' +
+    '</form>'
+  );
+}
+
+/** Re-render every view that shows meals (Today list + Diary). */
+function refreshMealViews() {
+  renderTodayMeals();
+  renderDiary();
+}
+
+function attachMealHandlers(container) {
   container.querySelectorAll('.meal-delete').forEach(btn => {
     btn.addEventListener('click', () => {
       meals = meals.filter(m => m.id !== btn.dataset.id);
+      if (editingMealId === btn.dataset.id) editingMealId = null;
       saveMeals();
-      renderTodayMeals();
-      // Also refresh diary if it's showing the same date
-      renderDiary();
+      refreshMealViews();
       showToast('Meal deleted');
+    });
+  });
+
+  container.querySelectorAll('.meal-edit-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      editingMealId = btn.dataset.id;
+      refreshMealViews();
+    });
+  });
+
+  container.querySelectorAll('.meal-edit').forEach(form => {
+    const slider = form.querySelector('.edit-feeling');
+    const emoji = form.querySelector('.edit-feeling-emoji');
+    const label = form.querySelector('.edit-feeling-label');
+
+    slider.addEventListener('input', () => {
+      const f = FEELINGS[slider.value] || FEELINGS[3];
+      emoji.textContent = f.emoji;
+      label.textContent = f.label;
+      label.className = `feeling-label edit-feeling-label ${f.cls}`;
+    });
+
+    form.querySelector('.edit-cancel').addEventListener('click', () => {
+      editingMealId = null;
+      refreshMealViews();
+    });
+
+    form.addEventListener('submit', e => {
+      e.preventDefault();
+      const meal = meals.find(m => m.id === form.dataset.id);
+      if (!meal) return;
+
+      const name = form.querySelector('.edit-name').value.trim();
+      const date = form.querySelector('.edit-date').value;
+      if (!name || !date) return;
+
+      meal.name = name;
+      meal.ingredients = form.querySelector('.edit-ingredients').value.trim();
+      meal.feeling = parseInt(slider.value, 10);
+      meal.date = date;
+      meal.time = form.querySelector('.edit-time').value;
+      meal.notes = form.querySelector('.edit-notes').value.trim();
+
+      saveMeals();
+      editingMealId = null;
+      refreshMealViews();
+      showToast('Meal updated!');
     });
   });
 }
@@ -187,9 +360,9 @@ function renderTodayMeals() {
     return;
   }
 
-  const sorted = [...meals].sort((a, b) => new Date(b.date) - new Date(a.date));
+  const sorted = [...meals].sort((a, b) => mealSortKey(b).localeCompare(mealSortKey(a)));
   list.innerHTML = sorted.map(m => mealCardHTML(m, true)).join('');
-  attachDeleteHandlers(list);
+  attachMealHandlers(list);
 }
 
 function initFeelingSlider() {
@@ -212,7 +385,9 @@ function initFeelingSlider() {
 function initForm(feelingCtrl) {
   const form = document.getElementById('meal-form');
   const dateInput = document.getElementById('meal-date');
+  const timeInput = document.getElementById('meal-time');
   dateInput.value = todayISO();
+  timeInput.value = nowTime();
 
   form.addEventListener('submit', e => {
     e.preventDefault();
@@ -225,6 +400,7 @@ function initForm(feelingCtrl) {
       ingredients: document.getElementById('meal-ingredients').value.trim(),
       feeling: parseInt(document.getElementById('meal-feeling').value, 10),
       date: dateInput.value,
+      time: timeInput.value,
       notes: document.getElementById('meal-notes').value.trim(),
     });
 
@@ -233,7 +409,91 @@ function initForm(feelingCtrl) {
     showToast('Meal saved!');
     form.reset();
     dateInput.value = todayISO();
+    timeInput.value = nowTime();
     feelingCtrl.reset();
+  });
+}
+
+// ── Stress level (one entry per day) ─────────────────────────
+
+/** Every place a stress control lives. Today and Diary can point at the same
+ *  day, so a commit in one has to refresh the other — otherwise the stale one
+ *  would overwrite the fresh entry from its outdated prefill. */
+const STRESS_VIEWS = [
+  { id: 'stress-today', getDate: todayISO },
+  { id: 'stress-diary', getDate: () => currentDiaryDate },
+];
+
+function renderStressControls(exceptId) {
+  STRESS_VIEWS.forEach(view => {
+    if (view.id === exceptId) return;   // never re-render the one being edited
+    renderStressControl(document.getElementById(view.id), view.getDate);
+  });
+}
+
+/**
+ * Render the stress control for a day into `container`.
+ * `getDate` is read lazily so the diary control follows the selected day.
+ */
+function renderStressControl(container, getDate) {
+  // Missing container = a cached older index.html paired with this script.
+  // Degrade quietly instead of breaking the rest of the page.
+  if (!container) return;
+
+  const entry = stressData[getDate()];
+  const level = entry ? entry.level : DEFAULT_STRESS;
+  const s = STRESS[level] || STRESS[DEFAULT_STRESS];
+
+  container.innerHTML =
+    '<div class="stress-head">' +
+      '<span class="stress-title">Stress level</span>' +
+      '<span class="stress-display" aria-live="polite">' +
+        `<span class="stress-emoji" aria-hidden="true">${s.emoji}</span>` +
+        `<span class="stress-label ${entry ? s.cls : 'stress-none'}">${entry ? s.label : 'Not logged'}</span>` +
+      '</span>' +
+    '</div>' +
+    `<input type="range" class="stress-slider" min="1" max="5" value="${level}" aria-label="Stress level">` +
+    '<label class="edit-field stress-reason-field"><span>Why?</span>' +
+      `<input type="text" class="stress-reason" value="${escapeAttr(entry ? entry.reason : '')}" placeholder="What caused it?"></label>` +
+    `<button type="button" class="btn-text stress-clear"${entry ? '' : ' hidden'}>Clear stress entry</button>`;
+
+  attachStressHandlers(container, getDate);
+}
+
+function attachStressHandlers(container, getDate) {
+  const slider = container.querySelector('.stress-slider');
+  const reason = container.querySelector('.stress-reason');
+  const clearBtn = container.querySelector('.stress-clear');
+  const emoji = container.querySelector('.stress-emoji');
+  const label = container.querySelector('.stress-label');
+
+  function paint(level, logged) {
+    const s = STRESS[level] || STRESS[DEFAULT_STRESS];
+    emoji.textContent = s.emoji;
+    label.textContent = logged ? s.label : 'Not logged';
+    label.className = `stress-label ${logged ? s.cls : 'stress-none'}`;
+    clearBtn.hidden = !logged;
+  }
+
+  // Autosave: one entry per day, overwritten in place.
+  function commit() {
+    const level = parseInt(slider.value, 10);
+    stressData[getDate()] = { level, reason: reason.value.trim() };
+    saveStress();
+    paint(level, true);
+    renderStressControls(container.id);
+  }
+
+  slider.addEventListener('input', commit);
+  reason.addEventListener('input', commit);
+
+  clearBtn.addEventListener('click', () => {
+    delete stressData[getDate()];
+    saveStress();
+    slider.value = DEFAULT_STRESS;
+    reason.value = '';
+    paint(DEFAULT_STRESS, false);
+    renderStressControls(container.id);
   });
 }
 
@@ -248,17 +508,21 @@ function renderDiary() {
 
   dateInput.value = currentDiaryDate;
 
+  // Chronological within the day, so a day reads top-to-bottom.
   const dayMeals = meals
     .filter(m => m.date === currentDiaryDate)
-    .sort((a, b) => b.id.localeCompare(a.id));
+    .sort((a, b) => mealSortKey(a).localeCompare(mealSortKey(b)));
 
   const water = waterData[currentDiaryDate] || 0;
   const poop = poopData[currentDiaryDate] || 0;
 
   summary.innerHTML =
-    `<div class="diary-stat"><span class="diary-stat-emoji">🥛</span> ${water}L</div>` +
-    `<div class="diary-stat"><span class="diary-stat-emoji">💩</span> ${poop}</div>` +
+    diaryStatHTML('water', '🥛', `${water}L`) +
+    diaryStatHTML('poop', '💩', String(poop)) +
     `<div class="diary-stat"><span class="diary-stat-emoji">🍽️</span> ${dayMeals.length} meal${dayMeals.length !== 1 ? 's' : ''}</div>`;
+  attachDiaryStatHandlers(summary);
+
+  renderStressControl(document.getElementById('stress-diary'), () => currentDiaryDate);
 
   if (dayMeals.length === 0) {
     mealList.innerHTML =
@@ -270,7 +534,37 @@ function renderDiary() {
   }
 
   mealList.innerHTML = dayMeals.map(m => mealCardHTML(m, true)).join('');
-  attachDeleteHandlers(mealList);
+  attachMealHandlers(mealList);
+}
+
+/** An editable water/poop stat for the day currently shown in the diary. */
+function diaryStatHTML(kind, emoji, value) {
+  return (
+    '<div class="diary-stat">' +
+      `<span class="diary-stat-emoji" aria-hidden="true">${emoji}</span>` +
+      `<button class="diary-stat-btn" data-kind="${kind}" data-dir="-1" aria-label="Decrease ${kind}">&minus;</button>` +
+      `<span class="diary-stat-value">${escapeHTML(value)}</span>` +
+      `<button class="diary-stat-btn" data-kind="${kind}" data-dir="1" aria-label="Increase ${kind}">+</button>` +
+    '</div>'
+  );
+}
+
+function attachDiaryStatHandlers(container) {
+  container.querySelectorAll('.diary-stat-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const isWater = btn.dataset.kind === 'water';
+      const data = isWater ? waterData : poopData;
+      const step = (isWater ? 0.5 : 1) * Number(btn.dataset.dir);
+      const next = Math.max(0, Math.round(((data[currentDiaryDate] || 0) + step) * 10) / 10);
+
+      if (next === 0) delete data[currentDiaryDate];
+      else data[currentDiaryDate] = next;
+
+      saveTracking();
+      renderDiary();
+      if (currentDiaryDate === todayISO()) syncTodayTrackers();
+    });
+  });
 }
 
 function initDiary() {
@@ -480,7 +774,7 @@ function validateMeal(m) {
 
 function initExport() {
   document.getElementById('export-btn').addEventListener('click', () => {
-    const payload = { version: 1, exportedAt: new Date().toISOString(), meals, waterData, poopData };
+    const payload = { version: 2, exportedAt: new Date().toISOString(), meals, waterData, poopData, stressData };
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -492,7 +786,7 @@ function initExport() {
   });
 }
 
-function initImport(waterTracker, poopTracker) {
+function initImport() {
   document.getElementById('import-btn').addEventListener('click', () => {
     document.getElementById('import-file').click();
   });
@@ -507,8 +801,13 @@ function initImport(waterTracker, poopTracker) {
         const data = JSON.parse(event.target.result);
 
         if (Array.isArray(data.meals)) {
-          const valid = data.meals.filter(validateMeal);
-          if (valid.length) { meals = valid; saveMeals(); renderTodayMeals(); }
+          const valid = data.meals.filter(validateMeal).map(normalizeMeal);
+          if (valid.length) {
+            meals = valid;
+            editingMealId = null;
+            saveMeals();
+            renderTodayMeals();
+          }
         }
 
         if (data.waterData && typeof data.waterData === 'object' && !Array.isArray(data.waterData)) {
@@ -525,9 +824,16 @@ function initImport(waterTracker, poopTracker) {
           poopData[todayISO()] = data.dailyPoopCount;
         }
 
+        // Absent in v1 exports — leave existing stress entries untouched then.
+        if (data.stressData !== undefined) {
+          stressData = normalizeStressData(data.stressData);
+          saveStress();
+        }
+
         saveTracking();
-        waterTracker.render();
-        poopTracker.render();
+        syncTodayTrackers();
+        renderStressControl(document.getElementById('stress-today'), todayISO);
+        renderDiary();
         showToast('Data imported!');
       } catch {
         showToast('Import failed — invalid file.');
@@ -544,14 +850,14 @@ document.addEventListener('DOMContentLoaded', () => {
   const feelingCtrl = initFeelingSlider();
   initForm(feelingCtrl);
 
-  const waterTracker = createDailyTracker({
-    data: waterData,
+  waterTracker = createDailyTracker({
+    getData: () => waterData,
     displayEl: document.getElementById('water-total'),
     step: 0.5, unit: 'L', save: saveTracking,
   });
 
-  const poopTracker = createDailyTracker({
-    data: poopData,
+  poopTracker = createDailyTracker({
+    getData: () => poopData,
     displayEl: document.getElementById('poop-count'),
     step: 1, unit: '', save: saveTracking,
   });
@@ -561,10 +867,12 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('poop-plus').addEventListener('click', poopTracker.increment);
   document.getElementById('poop-minus').addEventListener('click', poopTracker.decrement);
 
+  renderStressControl(document.getElementById('stress-today'), todayISO);
+
   renderTodayMeals();
   initDiary();
   initAnalytics();
   initExport();
-  initImport(waterTracker, poopTracker);
+  initImport();
   initRouter();
 });

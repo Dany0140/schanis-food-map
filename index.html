@@ -8,7 +8,9 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600&family=Quicksand:wght@400;500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css">
+  <!-- ?v= is bumped on release so GitHub Pages caching can't pair an old
+       app.js/style.css with a new index.html. -->
+  <link rel="stylesheet" href="style.css?v=2">
 </head>
 <body>
   <div class="container" role="main">
@@ -51,6 +53,8 @@
         </div>
       </div>
 
+      <div class="card stress-card" id="stress-today" aria-label="Stress level for today"></div>
+
       <div class="card">
         <form id="meal-form">
           <div class="form-group">
@@ -71,9 +75,15 @@
               </div>
             </div>
           </div>
-          <div class="form-group">
-            <label for="meal-date">Date</label>
-            <input type="date" id="meal-date">
+          <div class="form-row">
+            <div class="form-group">
+              <label for="meal-date">Date</label>
+              <input type="date" id="meal-date">
+            </div>
+            <div class="form-group">
+              <label for="meal-time">Time</label>
+              <input type="time" id="meal-time">
+            </div>
           </div>
           <div class="form-group">
             <label for="meal-notes">Notes (optional)</label>
@@ -94,6 +104,7 @@
         <button class="btn-icon" id="diary-next" aria-label="Next day">&rarr;</button>
       </div>
       <div class="diary-summary" id="diary-summary"></div>
+      <div class="card stress-card" id="stress-diary" aria-label="Stress level for selected day"></div>
       <div id="diary-meals" aria-label="Meals for selected day"></div>
     </div>
 
@@ -123,6 +134,6 @@
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
-  <script src="app.js"></script>
+  <script src="app.js?v=2"></script>
 </body>
 </html>
